@@ -86,6 +86,14 @@ class PredictionEngineAgent(BaseAgent):
             )
             sections.append(f"EARNINGS THIS WEEK: {cats}")
 
+        # Finviz Elite signals
+        if intelligence_brief.get("finviz_watch_list"):
+            sections.append(f"FINVIZ WATCH LIST: {', '.join(intelligence_brief['finviz_watch_list'])}")
+        if intelligence_brief.get("finviz_analysis"):
+            for line in intelligence_brief["finviz_analysis"].splitlines():
+                if any(line.startswith(h) for h in ("MARKET TONE:", "SECTOR THEMES:", "INSIDER SIGNAL:", "ANALYST FLOW:", "RISK FLAGS:")):
+                    sections.append(f"[FINVIZ] {line}")
+
         brief = "\n".join(sections)
         prompt = (
             f"Intelligence Brief for {intelligence_brief.get('date','today')}:\n\n"

@@ -11,7 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import SCAN_UNIVERSE, ANTHROPIC_API_KEY
+from config import ANTHROPIC_API_KEY, FINVIZ_API_KEY, SCAN_UNIVERSE
 
 # ─── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -62,7 +62,16 @@ with st.sidebar:
             import os; os.environ["ANTHROPIC_API_KEY"] = api_key_input
             from config import ANTHROPIC_API_KEY  # re-import after env set
     else:
-        st.success("API key loaded from .env")
+        st.success("Anthropic key loaded ✓")
+
+    if not FINVIZ_API_KEY:
+        fviz_key_input = st.text_input(
+            "Finviz Elite API Token", type="password", placeholder="xxxxxxxx-xxxx-..."
+        )
+        if fviz_key_input:
+            import os; os.environ["FINVIZ_API_KEY"] = fviz_key_input
+    else:
+        st.success("Finviz Elite key loaded ✓")
 
     st.divider()
 
@@ -78,6 +87,7 @@ with st.sidebar:
     st.markdown(
         """
         **Agents:**
+        - 🔍 Finviz Elite Screener
         - 📊 Market Scanner
         - 📉 Volume Analyzer
         - 📰 News Intelligence
@@ -86,8 +96,8 @@ with st.sidebar:
         """
     )
     st.divider()
-    st.caption("Data: Yahoo Finance · AI: Claude claude-sonnet-4-6")
-    st.caption("Refreshes on demand — not financial advice.")
+    st.caption("Data: Finviz Elite · Yahoo Finance")
+    st.caption("AI: Claude claude-sonnet-4-6 · Not financial advice.")
 
 # ─── Header ───────────────────────────────────────────────────────────────────
 now = datetime.now()
@@ -114,6 +124,7 @@ st.divider()
 
 # ─── Main content ─────────────────────────────────────────────────────────────
 tabs = st.tabs([
+    "🔍 Finviz Elite",
     "📊 Pre-Market Movers",
     "📉 Volume Alerts",
     "📰 News & Sentiment",
@@ -158,8 +169,94 @@ if run_btn:
 
 intel = st.session_state.intel
 
-# ─── TAB 1: Pre-Market Movers ─────────────────────────────────────────────────
+# ─── TAB 0: Finviz Elite ──────────────────────────────────────────────────────
 with tabs[0]:
+    if intel is None:
+        st.info("Click **Run Intelligence Scan** in the sidebar to fetch live Finviz Elite data.")
+        finviz_key_status = "✅ Loaded" if FINVIZ_API_KEY else "❌ Not set — add FINVIZ_API_KEY to .env"
+        st.markdown(f"**Finviz Elite token:** {finviz_key_status}")
+        st.markdown(
+            "This tab pulls directly from your Finviz Elite screener and shows:\n"
+            "- Top gainers, losers, unusual volume, most active\n"
+            "- 52-week new highs and lows\n"
+            "- Earnings this week\n"
+            "- Analyst upgrades and downgrades (sorted by volume)\n"
+            "- Insider buying (mid-cap+)\n"
+            "- AI intelligence brief synthesizing all signals"
+        )
+    else:
+        fv = intel.get("finviz", {})
+        generated = intel.get("generated_at", "")
+        st.caption(f"Finviz Elite data · Generated: {generated}")
+
+        if not fv:
+            st.warning("Finviz data unavailable — check your FINVIZ_API_KEY in .env")
+        else:
+            # ── Watch list chips ───────────────────────────────────────────
+            watch_list = fv.get("watch_list", [])
+            if watch_list:
+                st.markdown("### 👁 Finviz Watch List Today")
+                chips = "  ".join(
+                    f"<span class='badge badge-yellow'>{t}</span>" for t in watch_list
+                )
+                st.markdown(chips, unsafe_allow_html=True)
+                st.divider()
+
+            # ── AI intelligence brief ──────────────────────────────────────
+            analysis = fv.get("analysis", "")
+            if analysis:
+                st.markdown("### 🤖 AI Market Intelligence Brief")
+                st.markdown(f"<div class='metric-card'>{analysis}</div>", unsafe_allow_html=True)
+                st.divider()
+
+            # ── Six screener tables in 2 columns ──────────────────────────
+            col_a, col_b = st.columns(2)
+
+            def _show_table(df, title, label_col="Ticker", color="neutral"):
+                if df is not None and not df.empty:
+                    disp = df[["Ticker", "Change", "Volume"]].copy() if all(c in df.columns for c in ["Ticker","Change","Volume"]) else df
+                    st.markdown(f"**{title}** ({len(df)} stocks)")
+                    st.dataframe(disp.head(15), use_container_width=True, hide_index=True)
+                else:
+                    st.markdown(f"**{title}**")
+                    st.caption("No data.")
+
+            with col_a:
+                _show_table(fv.get("gainers"), "🟢 Top Gainers")
+                _show_table(fv.get("unusual_volume"), "📊 Unusual Volume")
+                _show_table(fv.get("new_highs"), "⬆ New 52-Week Highs")
+                st.divider()
+                ups = fv.get("upgrades", pd.DataFrame())
+                if not ups.empty:
+                    st.markdown(f"**📈 Analyst Upgrades** (top {min(len(ups),15)} by volume)")
+                    st.dataframe(ups[["Ticker","Company","Sector"]].head(15), use_container_width=True, hide_index=True)
+
+            with col_b:
+                _show_table(fv.get("losers"), "🔴 Top Losers")
+                _show_table(fv.get("most_active"), "🔥 Most Active")
+                _show_table(fv.get("new_lows"), "⬇ New 52-Week Lows")
+                st.divider()
+                dns = fv.get("downgrades", pd.DataFrame())
+                if not dns.empty:
+                    st.markdown(f"**📉 Analyst Downgrades** (top {min(len(dns),15)} by volume)")
+                    st.dataframe(dns[["Ticker","Company","Sector"]].head(15), use_container_width=True, hide_index=True)
+
+            # ── Earnings this week full table ──────────────────────────────
+            ew = fv.get("earnings_week", pd.DataFrame())
+            if not ew.empty:
+                st.divider()
+                st.markdown(f"### 📅 Earnings This Week ({len(ew)} stocks)")
+                st.dataframe(ew, use_container_width=True, hide_index=True)
+
+            # ── Insider buys ───────────────────────────────────────────────
+            ins = fv.get("insider_buys", pd.DataFrame())
+            if not ins.empty:
+                st.divider()
+                st.markdown(f"### 🏦 Insider Buying (mid-cap+, {len(ins)} stocks)")
+                st.dataframe(ins, use_container_width=True, hide_index=True)
+
+# ─── TAB 1: Pre-Market Movers ─────────────────────────────────────────────────
+with tabs[1]:
     if intel is None:
         st.info("Click **Run Intelligence Scan** in the sidebar to fetch live data.")
         st.markdown("### What this tab shows:")
@@ -251,7 +348,7 @@ with tabs[0]:
 
 
 # ─── TAB 2: Volume Alerts ─────────────────────────────────────────────────────
-with tabs[1]:
+with tabs[2]:
     if intel is None:
         st.info("Run the scan to see volume alerts.")
     else:
@@ -304,7 +401,7 @@ with tabs[1]:
 
 
 # ─── TAB 3: News & Sentiment ──────────────────────────────────────────────────
-with tabs[2]:
+with tabs[3]:
     if intel is None:
         st.info("Run the scan to see news and sentiment analysis.")
     else:
@@ -365,7 +462,7 @@ with tabs[2]:
 
 
 # ─── TAB 4: Catalyst Calendar ─────────────────────────────────────────────────
-with tabs[3]:
+with tabs[4]:
     if intel is None:
         st.info("Run the scan to see the catalyst calendar.")
     else:
@@ -412,7 +509,7 @@ with tabs[3]:
 
 
 # ─── TAB 5: AI Predictions ────────────────────────────────────────────────────
-with tabs[4]:
+with tabs[5]:
     if intel is None:
         st.info("Run the scan to generate AI predictions.")
     else:

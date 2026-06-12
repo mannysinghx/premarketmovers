@@ -9,11 +9,12 @@ from datetime import datetime
 from typing import Dict, List
 
 from agents.catalyst_detector import CatalystDetectorAgent
+from agents.finviz_agent import FinvizAgent
 from agents.market_scanner import MarketScannerAgent
 from agents.news_intelligence import NewsIntelligenceAgent
 from agents.prediction_engine import PredictionEngineAgent
 from agents.volume_analyzer import VolumeAnalyzerAgent
-from config import SCAN_UNIVERSE
+from config import FINVIZ_API_KEY, SCAN_UNIVERSE
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class IntelligenceOrchestrator:
         self.news = NewsIntelligenceAgent()
         self.catalysts = CatalystDetectorAgent()
         self.predictor = PredictionEngineAgent()
+        self.finviz = FinvizAgent() if FINVIZ_API_KEY else None
 
     def run(self, progress_callback=None) -> Dict:
         """
@@ -49,8 +51,18 @@ class IntelligenceOrchestrator:
 
         result = {}
 
-        # ── Phase 1: Market scan + volume (parallel) ──────────────────────
-        _progress("Scanning pre-market movers and volume anomalies…", 10)
+        # ── Phase 1: Finviz Elite screener (runs first — independent, no ticker list needed) ──
+        _progress("Fetching Finviz Elite screener data…", 5)
+        finviz_result = {}
+        if self.finviz:
+            try:
+                finviz_result = self.finviz.run()
+            except Exception as e:
+                logger.error("Finviz agent error: %s", e)
+        result["finviz"] = finviz_result
+
+        # ── Phase 2: Market scan + volume (parallel) ──────────────────────
+        _progress("Scanning pre-market movers and volume anomalies…", 25)
 
         scan_result = {}
         vol_result = {}
@@ -80,7 +92,7 @@ class IntelligenceOrchestrator:
         if not scan_result.get("losers", None) is None and not scan_result["losers"].empty:
             top_tickers += scan_result["losers"]["ticker"].tolist()[:5]
 
-        _progress("Running news intelligence…", 40)
+        _progress("Running news intelligence…", 50)
 
         # ── Phase 2: News (sequential — needs top tickers) ─────────────────
         try:
@@ -91,7 +103,7 @@ class IntelligenceOrchestrator:
         result["news"] = news_result
 
         # ── Phase 3: Catalysts (can run alongside news in theory, but shares API) ──
-        _progress("Detecting catalysts and events…", 60)
+        _progress("Detecting catalysts and events…", 70)
         try:
             catalyst_result = self.catalysts.run(top_tickers or self.tickers[:20])
         except Exception as e:
@@ -100,7 +112,7 @@ class IntelligenceOrchestrator:
         result["catalysts"] = catalyst_result
 
         # ── Phase 4: Predictions (needs everything above) ──────────────────
-        _progress("Generating AI predictions…", 80)
+        _progress("Generating AI predictions…", 85)
 
         # Build the brief
         top_gainers = scan_result.get("gainers", None)
@@ -113,6 +125,8 @@ class IntelligenceOrchestrator:
             "sentiment": news_result.get("sentiment", {}),
             "news_analysis": news_result.get("analysis", ""),
             "near_term_catalysts": catalyst_result.get("near_term", []),
+            "finviz_watch_list": finviz_result.get("watch_list", []),
+            "finviz_analysis": finviz_result.get("analysis", ""),
         }
 
         try:

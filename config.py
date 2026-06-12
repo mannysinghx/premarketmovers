@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+FINVIZ_API_KEY = os.getenv("FINVIZ_API_KEY", "")
 MODEL = "claude-sonnet-4-6"
+FINVIZ_BASE_URL = "https://elite.finviz.com/export"
 
 # Curated high-profile tickers across key sectors
 SCAN_UNIVERSE = [
