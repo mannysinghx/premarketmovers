@@ -14,7 +14,9 @@ from agents.market_scanner import MarketScannerAgent
 from agents.news_intelligence import NewsIntelligenceAgent
 from agents.prediction_engine import PredictionEngineAgent
 from agents.volume_analyzer import VolumeAnalyzerAgent
-from config import FINVIZ_API_KEY, SCAN_UNIVERSE
+import os
+
+from config import SCAN_UNIVERSE
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +39,7 @@ class IntelligenceOrchestrator:
         self.news = NewsIntelligenceAgent()
         self.catalysts = CatalystDetectorAgent()
         self.predictor = PredictionEngineAgent()
-        self.finviz = FinvizAgent() if FINVIZ_API_KEY else None
+        self.finviz = FinvizAgent() if os.environ.get("FINVIZ_API_KEY") else None
 
     def run(self, progress_callback=None) -> Dict:
         """

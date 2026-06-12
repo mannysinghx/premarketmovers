@@ -12,7 +12,9 @@ from typing import Optional
 import pandas as pd
 import requests
 
-from config import FINVIZ_API_KEY, FINVIZ_BASE_URL
+import os
+
+from config import FINVIZ_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ def _fetch(query_string: str, max_rows: int = 50) -> Optional[pd.DataFrame]:
         time.sleep(_MIN_INTERVAL - elapsed)
     _LAST_CALL = time.time()
 
-    url = f"{FINVIZ_BASE_URL}?{query_string}&auth={FINVIZ_API_KEY}"
+    url = f"{FINVIZ_BASE_URL}?{query_string}&auth={os.environ.get('FINVIZ_API_KEY', '')}"
     try:
         r = requests.get(url, headers=_HEADERS, timeout=15)
         r.raise_for_status()

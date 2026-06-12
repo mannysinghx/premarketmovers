@@ -53,24 +53,25 @@ with st.sidebar:
     st.markdown("**AI-Powered Market Intelligence**")
     st.divider()
 
-    if not ANTHROPIC_API_KEY:
-        api_key_input = st.text_input(
-            "Anthropic API Key", type="password", placeholder="sk-ant-..."
-        )
-        if api_key_input:
-            import os; os.environ["ANTHROPIC_API_KEY"] = api_key_input
-            from config import ANTHROPIC_API_KEY  # re-import after env set
-    else:
-        st.success("Anthropic key loaded ✓")
+    import os as _os
 
-    if not FINVIZ_API_KEY:
-        fviz_key_input = st.text_input(
-            "Finviz Elite API Token", type="password", placeholder="xxxxxxxx-xxxx-..."
-        )
-        if fviz_key_input:
-            import os; os.environ["FINVIZ_API_KEY"] = fviz_key_input
+    _ant_key = _os.environ.get("ANTHROPIC_API_KEY", "")
+    if _ant_key:
+        st.success("Anthropic key loaded ✓")
     else:
+        val = st.text_input("Anthropic API Key", type="password", placeholder="sk-ant-...")
+        if val:
+            _os.environ["ANTHROPIC_API_KEY"] = val
+            st.rerun()
+
+    _fviz_key = _os.environ.get("FINVIZ_API_KEY", "")
+    if _fviz_key:
         st.success("Finviz Elite key loaded ✓")
+    else:
+        val = st.text_input("Finviz Elite API Token", type="password", placeholder="xxxxxxxx-xxxx-...")
+        if val:
+            _os.environ["FINVIZ_API_KEY"] = val
+            st.rerun()
 
     st.divider()
 
