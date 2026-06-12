@@ -3,7 +3,6 @@ PreMarket Movers — AI Market Intelligence Dashboard
 Run: streamlit run app.py
 """
 
-import time
 from datetime import datetime
 
 import pandas as pd
